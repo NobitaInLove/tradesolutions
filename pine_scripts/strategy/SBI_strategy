@@ -1,15 +1,17 @@
 //==================================================================================================================================================================================================================//
-//===========================AutoBot PowerOfStocks_5EMA Code Start - AutoBot{===========================//
+//===========================𝒦𝑒𝒶𝓃𝓊_𝑅𝒾𝒯𝓏 PowerOfStocks_5EMA Code Start - AutoBot{===========================//
 // This source code is subject to the terms of the Mozilla Public License 2.0 at https://mozilla.org/MPL/2.0/
 // © AutoBot
 //@version=5
 //==================================================================================================================================================================================================================//
-strategy(title='OrderBlock_BUY_SELL_Strategy_PowerOfStocks_5EMA_-_AutoBot', overlay=true)
+strategy(title='Buy_Sell_SBI_Strategy_PowerOfStocks_5EMA_OrderBlock-_AutoBot', overlay=true)
 //==================================================================================================================================================================================================================//
 
+
+
 Eusl = input.bool(true, title="Enable the Extra SL shown below", group='PowerOfStocks 5EMA - AutoBot')
-usl = input.int(defval=5 , title='Value to set SL number of points below-low or above-high', minval=1, maxval=100, group='PowerOfStocks 5EMA - AutoBot')
-RiRe = input.int(defval=1,title='Risk to Reward Ratio',minval=1,maxval=25, group='PowerOfStocks 5EMA - AutoBot')
+usl = input.float(defval=1.5, title='Value to set SL number of points below-low or above-high', minval=1, maxval=100, group='PowerOfStocks 5EMA - AutoBot')
+RiRe = input.int(defval=2,title='Risk to Reward Ratio',minval=1,maxval=25, group='PowerOfStocks 5EMA - AutoBot')
 ShowSell = input.bool(false,'Show Sell Signals', group='PowerOfStocks 5EMA - AutoBot')
 ShowBuy = input.bool(true,'Show Buy Signals', group='PowerOfStocks 5EMA - AutoBot')
 BSWCon = input.bool(defval=true, title='Buy/Sell with Extra Condition - candle close', tooltip='Extra Condition 1 : candle close greater/lesser than previous candle close, This can sometimes save you from false moves but by using this, you can also miss out on big moves as you will enter trade after candle closing instead of entering at break of high/low', group='PowerOfStocks 5EMA - AutoBot')
@@ -139,24 +141,22 @@ plotshape(ShowBuy and lslhit, title='SL Hit - Long', location=location.belowbar,
 plotshape(ShowBuy and ltarhit, title='Target Hit - Long', location=location.abovebar, offset=0, color=color.new(color.green, 45), style=shape.arrowup, size=size.normal, text='Target Hit - Long', textcolor=color.new(color.green, 55))
 
 if ShowSell and Short
-    alert("Go Short@ " + str.tostring(sellat) + " : SL@ " + str.tostring(ssl) + " : Target@ " + str.tostring(star) + " ", alert.freq_all )
-    strategy.entry("12345",strategy.short,50,1,1,"",strategy.oca.none, "Go Short@ " + str.tostring(sellat) + " : SL@ " + str.tostring(ssl) + " : Target@ " + str.tostring(star) + " " ,"Go Short@ " + str.tostring(sellat) + " : SL@ " + str.tostring(ssl) + " : Target@ " + str.tostring(star) + " ") 
+    // alert("Go Short@ " + str.tostring(sellat) + " : SL@ " + str.tostring(ssl) + " : Target@ " + str.tostring(star) + " ", alert.freq_all )
+    strategy.entry(id="12345",direction=strategy.short,qty=50,limit=1,stop=1,oca_name="",oca_type=strategy.oca.none,comment= "Go Short@ " + str.tostring(sellat) + " : SL@ " + str.tostring(ssl) + " : Target@ " + str.tostring(star) + " " ,alert_message="Go Short@ " + str.tostring(sellat) + " : SL@ " + str.tostring(ssl) + " : Target@ " + str.tostring(star) + " ") 
 if ShowSell and sslhit
-    alert("Short Stop-loss hit - "+str.tostring(ssl), alert.freq_all)
+    // alert("Short Stop-loss hit - "+str.tostring(ssl), alert.freq_all)
     strategy.exit("12345","",50,100,100,1,0,0,0,0,0,strategy.oca.reduce,"Short Stop-loss Hit","Short Stop-loss Hit","Short Stop-loss Hit","Short Stop-loss Hit","Short Stop-loss hit " + str.tostring(sellat),"Short Stop-loss Hit","Short Stop-loss Hit","Short Stop-loss Hit")
 if ShowSell and starhit
-    alert("Short Target hit -  "+str.tostring(star), alert.freq_all )
+    // alert("Short Target hit -  "+str.tostring(star), alert.freq_all )
     strategy.exit("12345","",50,100,100,1,0,0,0,0,0,strategy.oca.reduce,"Short Target hit","Short Target hit","Short Target hit","Short Target hit","Short Target hit " + str.tostring(starhit),"Short Target hit","Short Target hit","Short Target hit")
 if ShowBuy and Long
-    alert("Go Long@ " + str.tostring(buyat) + " : SL@ " + str.tostring(lsl) + " : Target@ " + str.tostring(ltar) + " ", alert.freq_all )
+    // alert("Go Long@ " + str.tostring(buyat) + " : SL@ " + str.tostring(lsl) + " : Target@ " + str.tostring(ltar) + " ", alert.freq_all )
     // strategy.order("12345",strategy.long,50,1,1,"",strategy.oca.none, "Go Long@ " ,"Go Long@ " + str.tostring(buyat) + " : SL@ " + str.tostring(lsl) + " : Target@ " + str.tostring(ltar) + " ")
-    strategy.entry("12345",strategy.long,50,1,1,"",strategy.oca.none, "Go Long@ " + str.tostring(buyat) + " : SL@ " + str.tostring(lsl) + " : Target@ " + str.tostring(ltar) + " " ,"Go Long@ " + str.tostring(sellat) + " : SL@ " + str.tostring(lsl) + " : Target@ " + str.tostring(ltar) + " ")  
+    strategy.entry(id="12345",direction=strategy.long,qty=50,limit=1,stop=1,oca_name="",oca_type = strategy.oca.none, comment="Go Long@ " + str.tostring(buyat) + " : SL@ " + str.tostring(lsl) + " : Target@ " + str.tostring(ltar) + " " ,alert_message="Go Long@ " + str.tostring(sellat) + " : SL@ " + str.tostring(lsl) + " : Target@ " + str.tostring(ltar) + " ")  
 if ShowBuy and lslhit
-    alert("Long Stop-loss hit ", alert.freq_all )
+    // alert("Long Stop-loss hit ", alert.freq_all )
     strategy.exit("12345","",50,100,100,1,0,0,0,0,0,strategy.oca.reduce,"Long Stop-loss hit ","Long Stop-loss hit","Long Stop-loss hit","Long Stop-loss hit","Long Stop-loss hit  " + str.tostring(lslhit),"Long Stop-loss hit","Long Stop-loss hit","Long Stop-loss hit")
 if ShowBuy and ltarhit
-    alert("Long Target hit ", alert.freq_all )
-    strategy.exit("12345","",50,100,100,1,0,0,0,0,0,strategy.oca.reduce,"Long Target hit ","Long Stop-loss hit","Long Stop-loss hit","Long Stop-loss hit","Long Target hit" + str.tostring(ltarhit) ,"Long Stop-loss hit","Long Stop-loss hit","Long Stop-loss hit")
+    // alert("Long Target hit ", alert.freq_all )
+    strategy.exit("12345","",50,100,100,1,0,0,0,0,0,strategy.oca.reduce,"Long target hit ","Long Target hit","Long target hit","Long target hit","Long target hit  " + str.tostring(ltar),"Long target hit","Long target hit","Long target hit")
 //===========================AutoBot PowerOfStocks_5EMA Code End - AutoBot===========================]//
-
-//==================================================================================================================================================================================================================//
