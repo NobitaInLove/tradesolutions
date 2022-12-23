@@ -12,7 +12,7 @@
 	"volume": {{volume}}
 	},
 	"strategy":{
-			"alert_message" : "{{strategy.entry.alert_message}}",
+			"alert_message" : "{{strategy.order.alert_message}}",
 			"position_size": {{strategy.position_size}},
 			"order_action": "{{strategy.order.action}}", 
 			"order_contracts": {{strategy.order.contracts}},
