@@ -1,1 +1,2 @@
+git+https://github.com/paramatrixtech/ksapi.git#egg=ks_api_client&subdirectory=./python
 requests
