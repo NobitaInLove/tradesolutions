@@ -1,12 +1,13 @@
 
 
 
-from chalice import Chalice
+from chalice import Chalice, Cron
 
 from ks_api_client import ks_api
-import time, requests , trade_config , smtplib
+import time, requests  , smtplib , threading
 from email.mime.multipart import MIMEMultipart
 from email.mime.text import MIMEText
+from chalicelib import trade_config
 #import pandas as pd
 
 app = Chalice(app_name='trade-bot')
@@ -30,7 +31,9 @@ def email_notification(send_add, rec_add, send_pass, mail_body, mail_subject):
     session.sendmail(send_add, rec_add, text)
     session.quit()   
 
-# fetch_instrument_token definition
+
+# ************** function to fetch dynamic instrument_token definition ******************** #
+
 def fetch_instrument_token(webhook_message, user_ , kt_trade_config):
     headers = {'accept' : 'application/json',"consumerkey" : f"{user_['consumer_secret']}" , "Authorization" : f"Bearer {user_['access_token']}"}
     res = requests.get(kt_trade_config['instrument_token_script'],headers=headers).json()
@@ -39,7 +42,9 @@ def fetch_instrument_token(webhook_message, user_ , kt_trade_config):
     tok_rec  = cash_df[(cash_df.instrumentName==webhook_message['ticker']) & (cash_df.instrumentType=="EQ") & (cash_df.exchange==webhook_message['exchange'])] #this must come from tradeview alert
     return tok_rec['instrumentToken']
 
-# place_order() definition
+
+# *********************** place_order() definition ***************************** #
+
 def place_order(webhook_message, ks_api,user_ , kt_trade_config):
     kt_client = ks_api.KSTradeApi(access_token = user_['access_token'], userid = user_['userid'], consumer_key = user_['consumer_key'],ip = "127.0.0.1", app_id = "DefaultApplication",\
                            host = kt_trade_config['host'], consumer_secret = user_['consumer_secret'])
@@ -106,19 +111,16 @@ def place_order(webhook_message, ks_api,user_ , kt_trade_config):
     order_type = webhook_message['strategy']['order_action']
     print('order type'+str(order_type))
     try:
-        print('inside try')
         if order_type == 'buy':
-            print('start buy')
             order_status = kt_client.place_order(order_type = "MIS", instrument_token = 1900, transaction_type = "BUY",\
                             quantity = no_of_share_you_can_buy, price = price, trigger_price = stop_loss,\
                             tag = "string", validity = "GFD", variety = "REGULAR")
-            print('buy order')
+            
         elif order_type == 'sell':
-            print('start sell')
             order_status = kt_client.place_order(order_type = "MIS", instrument_token = 1900, transaction_type = "SELL",\
                             quantity = 1, price = 0, trigger_price = 0,\
                             tag = "string", validity = "GFD", variety = "REGULAR")        
-            print('sell order')
+            
         else:
             return {'message' : 'order type buy/sell not found in trading view alert'}
     except Exception as ex:
@@ -138,8 +140,9 @@ def place_order(webhook_message, ks_api,user_ , kt_trade_config):
 
     
 
-
-    
+# ******************************************************************************* #    
+# ********************** MAIN HANDLER / FUNCTION STARTS HERE ******************** #
+# ******************************************************************************* #    
 
 @app.route('/')
 def index():
@@ -147,19 +150,62 @@ def index():
 
 @app.route('/trade_alert', methods=['POST'])
 def trade_alert():
-    request = app.current_request
-    webhook_message = request.json_body
-    # check if pass phrase is correct in the alert message, if validated allow access
-    if webhook_message['passphrase'] != trade_config.tradingview_alert_passphrase:
-        return {'message' : 'please check your passphrase, its not correct.'}
-    # check no of users in <trade_config> file. execute market order requests per user in parallel
-    for user_ in trade_config.kotak_config['user_config']:
-        place_order(webhook_message,ks_api,user_ , trade_config.kotak_config)
+    try:
+        request = app.current_request
+        webhook_message = request.json_body
+        # check if pass phrase is correct in the alert message, if validated allow access
+        if webhook_message['passphrase'] != trade_config.tradingview_alert_passphrase:
+            return {'message' : 'please check your passphrase, its not correct.'}
+        # check no of users in <trade_config> file. execute market order requests per user in parallel
+        for user_ in trade_config.kotak_config['user_config']:
+            threading.Thread(target=place_order, args=(webhook_message,ks_api,user_ , trade_config.kotak_config,)).start()
+            #place_order(webhook_message,ks_api,user_ , trade_config.kotak_config)
+        #return {'message': 'Order placed successfully for all users'}
+    except Exception as ex:
+        return {'message': 'error placing order. See the exception here : '+str(ex)}
 
-    
-      
 
 
-    return {'message': webhook_message}
+# ******************************************************************************** #
+# **************** scheduler of event at 15:00 PM every day ********************** #
+# ******************************************************************************** #
 
+def per_user_round_off(user_):
+    # 1. check positions for TODAY - fetch open / executed trades from order placed for TODAY
+    kt_client = ks_api.KSTradeApi(access_token = user_['access_token'], userid = user_['userid'], consumer_key = user_['consumer_key'],ip = "127.0.0.1", app_id = "DefaultApplication",\
+                           host = trade_config.kotak_config['host'], consumer_secret = user_['consumer_secret'])
+
+    # Initiate login and generate OTT
+    kt_login_details = kt_client.login(password = user_['kotak_password'])
+    if "Success" not in kt_login_details:
+        return {'message' : 'login un-successful for user->'+user_['userid']} # TODO : notify failed user access to intended user on telegram chat
+    #Complete login and generate session token
+    kt_client_session = kt_client.session_2fa()
+    if kt_client_session['clientCode'] != user_['clientCode']:
+        return {'message' : 'client code does not matches for user->'+user_['userid']} # TODO : notify failed user access to intended user on telegram chat
+
+    # Get's position by position_type.
+    pos_details = kt_client.positions(position_type = "TODAYS")
+    # 2. delete non-traded / open order
+    # 3. exit/close traded orders / square off daily positions
+    # 4. send email to each user about exit
+    send_add='itsabhaytiwari@gmail.com' 
+    rec_add=user_['email_id'] 
+    send_pass='axorhsnenecnldyu'
+    mail_body = ''
+    mail_subject = '<Daily EXIT status>'
+    email_notification(send_add, rec_add, send_pass, mail_body, mail_subject)
+
+
+@app.schedule(Cron(30 , 9, '?', '*', 'MON-FRI','*'))
+def daily_round_off_exit(event):
+    try:
+        for user_ in trade_config.kotak_config['user_config']:
+            threading.Thread(target=per_user_round_off, args=(user_,)).start()
+            
+    except Exception as e:
+        print('exception in daily round off job -'+str(e))
+        
+
+     
 
