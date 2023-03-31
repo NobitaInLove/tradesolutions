@@ -1,0 +1,206 @@
+//==================================================================================================================================================================================================================//
+//===========================guptavinayak 5X20 Code Start - guptavinayak{===========================//
+// This source code is subject to the terms of the Mozilla Public License 2.0 at https://mozilla.org/MPL/2.0/
+// © guptavinayak
+//@version=5
+//==================================================================================================================================================================================================================//
+indicator(title='5X20_-_guptavinayak_3_Feb_23_Afternoon', overlay=true)
+//==================================================================================================================================================================================================================//
+
+Eusl = input.bool(false, title="Enable the Extra SL shown below", group='5X20 - guptavinayak')
+usl = input.int(defval=5 , title='Value to set SL number of points below-low or above-high', minval=1, maxval=100, group='5X20 - guptavinayak')
+RiRe = input.int(defval=2,title='Risk to Reward Ratio',minval=1,maxval=25, group='5X20 - guptavinayak')
+ShowSell = input.bool(true,'Show Sell Signals', group='5X20 - guptavinayak')
+ShowBuy = input.bool(true,'Show Buy Signals', group='5X20 - guptavinayak')
+BSWCon = input.bool(defval=false, title='Buy/Sell with Extra Condition - candle close', tooltip='Extra Condition 1 : candle close greater/lesser than previous candle close, This can sometimes save you from false moves but by using this, you can also miss out on big moves as you will enter trade after candle closing instead of entering at break of high/low', group='5X20 - guptavinayak')
+
+// timeInputAfternoon = input('1100-1445', title="Indicator will work during following time (has to be according to the exchange's timezone):")
+// tradeTimeAfternoon = time(timeframe.period, timeInputAfternoon)
+
+// timeInputAfternonExit = input('1505', title="Indicator will exit during following time (has to be according to the exchange's timezone):")
+// tradeTimeAfternoonExit = time(timeframe.period, timeInputAfternonExit)
+
+Crossover5X20 = input.bool(true, title="Enable Crossover 5X20", group='5X20 - guptavinayak')
+
+ema5 = ta.ema(close,5)
+pema5 = plot(ema5, '5 Ema', color=color.new(#41a5e4, 0), linewidth=2)
+
+ema20 = ta.ema(close,20)
+pema20 = plot(ema20, '20 Ema', color=color.new(#4cd018, 0), linewidth=2)
+
+
+var bool Short  = na
+var bool Long  = na
+var shortC = 0
+var shortC_5X20 = 0
+var sslhitC = 0
+var sslhitC_5X20  = 0
+var starhitC = 0
+var starhitC_5X20 = 0
+var float ssl = na
+var float ssl_5X20  = 0
+var float starl = na
+var float starl_5X20 = na
+var float star = na
+var float star_5X20 = na
+var float sellat = na
+var float sellat_5X20 = na
+var float alert_shorthigh = na
+var float alert_shorthigh_5X20 = na
+var float alert_shortlow = na
+var float alert_shortlow_5X20 = na
+var line lssl = na
+var line lssl_5X20 = na
+var line lstar = na
+var line lstar_5X20 = na
+var line lsell = na
+var line lsell_5X20 = na
+var label lssllbl = na
+var label lssllbl_5X20 = na
+var label lstarlbl = na
+var label lstarlbl_5X20 = na
+var label lselllbl = na
+var label lselllbl_5X20 = na
+var longC = 0
+var longC_5X20 = 0
+var lslhitC = 0
+var lslhitC_5X20 = 0
+var ltarhitC = 0
+var ltarhitC_5X20 = 0
+var float lsl = na
+var float lsl_5X20 = na
+var float ltarl = na
+var float ltarl_5X20 = na
+var float ltar = na
+var float ltar_5X20 = na
+var float buyat = na
+var float buyat_5X20 = na
+var float alert_longhigh = na
+var float alert_longhigh_5X20 = na
+var float alert_longlow = na
+var float alert_longlow_5X20 = na
+var line llsl = na
+var line llsl_5X20 = na
+var line lltar = na
+var line lltar_5X20 = na
+var line lbuy = na
+var line lbuy_5X20 = na
+var label llsllbl = na
+var label llsllbl_5X20 = na
+var label lltarlbl = na
+var label lltarlbl_5X20 = na
+var label lbuylbl = na
+var label lbuylbl_5X20 = na
+
+var sslhit_5X20 = 0
+var starhit_5X20 = 0
+var lslhit_5X20 = 0
+var ltarhit_5X20 = 0
+
+
+
+shortCondition = ta.crossunder(ta.ema(close, 5), ta.ema(close, 20))
+longCondition = ta.crossover(ta.ema(close, 5), ta.ema(close, 20))
+
+ShortWC = low[1] > ema5[1] and low[1] > low and shortC == 0 and close<close[1]
+ShortWOC = low[1] > ema5[1] and low[1] > low and shortC == 0
+Short := BSWCon ? ShortWC : ShortWOC
+sslhit = high > ssl and shortC > 0 and sslhitC == 0
+starhit = low < star and shortC > 0 and starhitC == 0
+LongWC =  high[1] < ema5[1] and high[1] < high and longC == 0 and close>close[1]
+LongWOC =  high[1] < ema5[1] and high[1] < high and longC == 0
+Long := BSWCon ? LongWC : LongWOC
+lslhit = low < lsl and longC > 0 and lslhitC == 0
+ltarhit = high > ltar and longC > 0 and ltarhitC == 0
+
+// 5X20 EMA strategy
+if Crossover5X20
+// Long := BSWCon ? LongWC : LongWOC
+    // if shortCondition and tradeTimeAfternoon
+    if shortCondition
+        shortC := shortC + 1
+        sslhitC := 0
+        starhitC := 0
+        alert_shorthigh := high[1]
+        if Eusl
+            ssl := high[1] + usl
+            starl := BSWCon ? ((high[1] - close) + usl) * RiRe : ((high[1] - low[1]) + usl) * RiRe
+        else
+            ssl := high[1]
+            starl := BSWCon ? (high[1] - close) * RiRe : (high[1] - low[1]) * RiRe
+        star := BSWCon ? close - starl : low[1] - starl
+        sellat := BSWCon ? close : low[1]
+        lssl := line.new(bar_index, ssl, bar_index, ssl, color=color.new(#fc2d01,45), style=line.style_dashed)
+        lstar := line.new(bar_index, star, bar_index, star, color=color.new(color.green,45), style=line.style_dashed)
+        lsell := line.new(bar_index, sellat, bar_index, sellat, color=color.new(color.orange,45), style=line.style_dashed)
+        lssllbl := label.new(bar_index, ssl, style=label.style_none, text='5X20 - Stop Loss - Short' + ' (' + str.tostring(ssl) + ')', textcolor=color.new(#fc2d01,35), color=color.new(#fc2d01,35))
+        lstarlbl := label.new(bar_index, star, style=label.style_none, text='5X20 - Target - Short' + ' (' + str.tostring(star) + ')', textcolor=color.new(color.green,35), color=color.new(color.green,35))
+        lselllbl := label.new(bar_index, sellat, style=label.style_none, text='5X20 - Sell at' + ' (' + str.tostring(sellat) + ')', textcolor=color.new(color.orange,35), color=color.new(color.orange,35))
+
+    if sslhit == false and starhit == false and shortC > 0
+        line.set_x2(lssl, bar_index)
+        line.set_x2(lstar, bar_index)
+        line.set_x2(lsell, bar_index)
+        sslhitC := 0
+        starhitC := 0
+    else
+        if sslhit
+            shortC := 0
+            sslhitC := sslhitC + 1
+        else
+            if starhit
+                shortC := 0
+                starhitC := starhitC + 1
+
+    if longCondition
+        longC := longC + 1
+        lslhitC := 0
+        ltarhitC := 0
+        alert_longlow := low[1]
+        if Eusl
+            lsl := low[1] - usl
+            ltarl := BSWCon ? ((close - low[1]) + usl) * RiRe : ((high[1] - low[1]) + usl) * RiRe
+        else
+            lsl := low[1]
+            ltarl := BSWCon ? (close - low[1]) * RiRe : (high[1] - low[1]) * RiRe
+        ltar := BSWCon ? close + ltarl : high[1] + ltarl
+        buyat := BSWCon ? close : high[1]
+        llsl := line.new(bar_index, lsl, bar_index, lsl, color=color.new(#fc2d01,45), style=line.style_dotted)
+        lltar := line.new(bar_index, ltar, bar_index, ltar, color=color.new(color.green,45), style=line.style_dotted)
+        lbuy := line.new(bar_index, buyat, bar_index, buyat, color=color.new(color.orange,45), style=line.style_dotted)
+        llsllbl := label.new(bar_index, lsl, style=label.style_none, text='5X20 - Stop Loss - Long' + ' (' + str.tostring(lsl) + ')', textcolor=color.new(#fc2d01,35), color=color.new(#fc2d01,35))
+        lltarlbl := label.new(bar_index, ltar, style=label.style_none, text='5X20 - Target - Long' + ' (' + str.tostring(ltar) + ')', textcolor=color.new(color.green,35), color=color.new(color.green,35))
+        lbuylbl := label.new(bar_index, buyat, style=label.style_none, text='5X20 - Buy at' + ' (' + str.tostring(buyat) + ')', textcolor=color.new(color.orange,35), color=color.new(color.orange,35))
+
+    if lslhit == false and ltarhit == false and longC > 0
+        line.set_x2(llsl, bar_index)
+        line.set_x2(lltar, bar_index)
+        line.set_x2(lbuy, bar_index)
+        lslhitC := 0
+        ltarhitC := 0
+    else
+        if lslhit
+            longC := 0
+            lslhitC := lslhitC + 1
+        else
+            if ltarhit
+                longC := 0
+                ltarhitC := ltarhitC + 1
+plotshape(shortCondition  , title='5X20 Sell', location=location.abovebar, offset=0, color=color.new(#e74c3c, 45), style=shape.arrowdown, size=size.normal, text='5X20 - Sell', textcolor=color.new(#e74c3c, 55))
+plotshape(shortCondition and sslhit , title='5X20 SL Hit - Short', location=location.abovebar, offset=0, color=color.new(#fc2d01, 25), style=shape.arrowdown, size=size.normal, text='5X20 - SL Hit - Short', textcolor=color.new(#fc2d01, 25))
+plotshape(shortCondition and starhit , title='5X20 Target Hit - Short', location=location.belowbar, offset=0, color=color.new(color.green, 45), style=shape.arrowup, size=size.normal, text='5X20 - Target Hit - Short', textcolor=color.new(color.green, 55))
+plotshape(longCondition  , title='5X20 Buy', location=location.belowbar, offset=0, color=color.new(#2ecc71, 45), style=shape.arrowup, size=size.normal, text='5X20 - Buy', textcolor=color.new(#2ecc71, 55))
+plotshape(longCondition and lslhit , title='5X20 SL Hit - Long', location=location.belowbar, offset=0, color=color.new(#fc2d01, 25), style=shape.arrowdown, size=size.normal, text='5X20 - SL Hit - Long', textcolor=color.new(#fc2d01, 25))
+plotshape(longCondition and ltarhit , title='5X20 Target Hit - Long', location=location.abovebar, offset=0, color=color.new(color.green, 45), style=shape.arrowup, size=size.normal, text='5X20 - Target Hit - Long', textcolor=color.new(color.green, 55))
+
+if Crossover5X20
+    if shortCondition  
+        alert("++sell" + str.tostring(sellat) + " :stop_loss@" + str.tostring(ssl) + ":target_price@" + str.tostring(star) + " ++ ", alert.freq_once_per_bar_close )
+        
+    if longCondition  
+        alert("++buy@" + str.tostring(buyat) + ":stop_loss@" + str.tostring(lsl) + ":target_price@" + str.tostring(ltar) + "++", alert.freq_once_per_bar_close )
+
+
+//===========================guptavinayak 5X20 Code End - guptavinayak===========================]//
+
+//==================================================================================================================================================================================================================//
