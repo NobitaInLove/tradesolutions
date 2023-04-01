@@ -2,6 +2,7 @@
 
 from chalice import Chalice, Cron
 
+import requests
 from ks_api_client import ks_api
 import time
 import requests
@@ -34,6 +35,14 @@ def email_notification(send_add, rec_add, send_pass, mail_body, mail_subject):
     session.quit()
 
 
+# ********************** send telegram notification *************** #
+def send_telegram(user_, chat_message):
+    chat_id = user_['telegram_chatid']
+    telegram_bot_url = 'https://api.telegram.org/bot5558223629:AAGS38PFut9M__yxNYy-yUY7lozMSAFMfE0/sendMessage?chat_id='+chat_id+'&text="'+chat_message+'"'
+    print('telegram bot url ->')
+    print(telegram_bot_url)
+    requests.get(telegram_bot_url)
+
 # ************** function to fetch dynamic instrument_token definition ******************** #
 
 def fetch_instrument_token(webhook_message, user_, kt_trade_config):
@@ -58,12 +67,16 @@ def place_order(webhook_message, ks_api, user_, kt_trade_config):
     kt_login_details = kt_client.login(password=user_['kotak_password'])
     if "Success" not in kt_login_details:
         # TODO : notify failed user access to intended user on telegram chat
+        send_telegram(user_,'login un-successful for user->'+user_['userid'])
         return {'message': 'login un-successful for user->'+user_['userid']}
+        raise Exception('login un-successful for user->'+user_['userid'])
     # Complete login and generate session token
     kt_client_session = kt_client.session_2fa()
     if kt_client_session['clientCode'] != user_['clientCode']:
         # TODO : notify failed user access to intended user on telegram chat
+        send_telegram(user_,'client code does not matches for user->'+user_['userid'])
         return {'message': 'client code does not matches for user->'+user_['userid']}
+        raise Exception('client code does not matches for user->'+user_['userid'])
 
     # fetch instrument token id from kotak equity/derivated scripts generated daily
     # kt_instument_token = fetch_instrument_token(webhook_message, user_ , kt_trade_config) # TODO : to enable to function for dynamic instument token fetch
@@ -85,7 +98,7 @@ def place_order(webhook_message, ks_api, user_, kt_trade_config):
     print(risk_per_trade)
 
     # fetch price, SL etc from <strategy.order.alert_message>
-    if webhook_message['strategy']['alert_message'] is None:
+    '''if webhook_message['strategy']['alert_message'] is None:
         return {'message': 'alert message not found in trading view alert'}
     else:
         order_comment = webhook_message['strategy']['alert_message']
@@ -100,23 +113,38 @@ def place_order(webhook_message, ks_api, user_, kt_trade_config):
             else:
                 return {'message': 'one of the params Price, stop loss, target price were not found in strategy.order.comment. Please check'}
                 break
-
+    '''
+    
+    # place order now
+    if 'buy' in webhook_message:
+        order_type = 'BUY'
+        trade_price = webhook_message['buy']
+    elif 'sell' in webhook_message:
+        order_type = 'SELL'
+        trade_price = webhook_message['sell']
+    else:
+        return {'message':'order type could not be found in webhook_message'}
+        raise Exception('cant trade share as no of share calculation is zero')
+    print('order type'+str(order_type))
+    stop_loss = webhook_message['stop_loss']
+    
     # calculate risk per share
-    risk_per_share = float(price) - float(stop_loss)
+    risk_per_share = float(trade_price) - float(stop_loss)
     print('risk per share')
     print(risk_per_share)
     # calculate how many share you can buy with available amount
-    no_of_share_you_can_buy = int(risk_per_trade/risk_per_share)
-    print('no of share you can buy')
-    print(no_of_share_you_can_buy)
+    no_of_share_you_can_trade = int(risk_per_trade/risk_per_share)
+    print('no of share you can trade')
+    print(no_of_share_you_can_trade)
+    if no_of_share_you_can_trade == 0:
+        #send_telegram(user_,'cant trade share as no of share calculation is zero')
+        #return {'message':'cant trade share as no of share calculation is zero'}
+        raise Exception('cant trade share as no of share calculation is zero')
     # price require for the trade
-    price_required_for_trade = price*no_of_share_you_can_buy
+    price_required_for_trade = trade_price*no_of_share_you_can_trade
     print('price rquird for trade')
     print(price_required_for_trade)
-
-    # place order now
-    order_type = webhook_message['strategy']['order_action']
-    print('order type'+str(order_type))
+    
     try:
         exchange_order_report = kt_client.order_report()
         # check if any order is executed earlier or not, if yes then exit from the order as per alert direction
@@ -131,7 +159,7 @@ def place_order(webhook_message, ks_api, user_, kt_trade_config):
                                                          tag="string", validity="GFD", variety="REGULAR")
                     # now buy as per alert
                     order_status = kt_client.place_order(order_type="MIS", instrument_token=1900, transaction_type="BUY",
-                                                         quantity=no_of_share_you_can_buy, price=price, trigger_price=stop_loss,
+                                                         quantity=no_of_share_you_can_trade, price=trade_price, trigger_price=stop_loss,
                                                          tag="string", validity="GFD", variety="REGULAR")
 
                 elif (placed_order_id is not None) and (order_type == 'sell'):
@@ -140,21 +168,26 @@ def place_order(webhook_message, ks_api, user_, kt_trade_config):
                                                          quantity=placed_order_quantity, price=0, trigger_price=0,
                                                          tag="string", validity="GFD", variety="REGULAR")
                     order_status = kt_client.place_order(order_type="MIS", instrument_token=1900, transaction_type="SELL",
-                                                         quantity=1, price=0, trigger_price=0,
+                                                         quantity=no_of_share_you_can_trade, price=trade_price, trigger_price=0,
                                                          tag="string", validity="GFD", variety="REGULAR")
 
                 else:
+                    order_status = 'NA - existing'
+                    print('no list of existing tran found')
                     kt_client.cancel_order(order_id=placed_order_id)
                     # return {'message': 'order type buy/sell not found in trading view alert'}
         else:
             if order_type == 'buy':
                 order_status = kt_client.place_order(order_type="MIS", instrument_token=1900, transaction_type="BUY",
-                                                     quantity=no_of_share_you_can_buy, price=price, trigger_price=stop_loss,
+                                                     quantity=no_of_share_you_can_trade, price=trade_price, trigger_price=stop_loss,
                                                      tag="string", validity="GFD", variety="REGULAR")
             elif order_type == 'sell':
                 order_status = kt_client.place_order(order_type="MIS", instrument_token=1900, transaction_type="SELL",
-                                                     quantity=1, price=0, trigger_price=0,
+                                                     quantity=no_of_share_you_can_trade, price=trade_price, trigger_price=stop_loss,
                                                      tag="string", validity="GFD", variety="REGULAR")
+            else:
+                order_status = 'NA - first'
+                print('inside first trade code block')
 
     except Exception as ex:
         # send notification via BOT to respective user chat id TODO - later #
@@ -167,9 +200,9 @@ def place_order(webhook_message, ks_api, user_, kt_trade_config):
         mail_subject = '<Order alert>'
         email_notification(send_add, rec_add, send_pass,
                            mail_body, mail_subject)
+        send_telegram(user_,'order placement failed with given exception - '+str(ex))
         return {'message': 'order placement failed with given exception - '+str(ex)}
-    print('order status')
-    print(order_status)
+    
 
 
 # ******************************************************************************* #
@@ -186,6 +219,8 @@ def trade_alert():
     try:
         request = app.current_request
         webhook_message = request.json_body
+        print('webhook_message:')
+        print(webhook_message)
         # check if pass phrase is correct in the alert message, if validated allow access
         if webhook_message['passphrase'] != trade_config.tradingview_alert_passphrase:
             print('please check your passphrase, its not correct')
@@ -193,11 +228,16 @@ def trade_alert():
         # check no of users in <trade_config> file. execute market order requests per user in parallel
         for user_ in trade_config.kotak_config['user_config']:
             #threading.Thread(target=place_order, args=(webhook_message,ks_api,user_ , trade_config.kotak_config,)).start()
-            place_order_result = place_order(webhook_message, ks_api, user_,
+            try:
+                place_order_result = place_order(webhook_message, ks_api, user_,
                                              trade_config.kotak_config)
+            except Exception as e:
+                send_telegram(user_,'error placing order for user :'+user_['user_name'] +'. See the exception here : '+str(e))
+                return {'message': 'error placing order. See the exception here : '+str(e)}
         # return {'message': 'Order placed successfully for all users'}
     except Exception as ex:
         return {'message': 'error placing order. See the exception here : '+str(ex)}
+        
 
 
 # ******************************************************************************** #
