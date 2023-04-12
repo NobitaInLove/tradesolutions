@@ -17,25 +17,58 @@ function emailparsef() {
           // TODO - check if string is present in plain body or not string [++target_price@val:stop_loss@val:base_price@val++]
           var json_str = {};
           var regex = /[++]/;
-          const ret = plainbody.search(regex);
-          Logger.log('return value');
-          Logger.log(ret);
-          if(ret!==-1.0){
-            const words = plainbody.split('++');
-            const i = words[1].split(':');
-            for(var j=0;j<i.length;j++){
-              const k = i[j].split('@');
-              json_str[k[0]] = k[1];
+          if (plainbody.search('Your SBIN alert was triggered')!==-1.0){
+            const ret = plainbody.search(regex);
+            Logger.log('return value');
+            Logger.log(ret);
+            if(ret!==-1.0){
+              Logger.log('String matched');
+              const words = plainbody.split('++');
+              const p = words[1].split(':');
+              for(var q=0;q<p.length;q++){
+                const r = p[q].split('@');
+                json_str[r[0]] = r[1];
+              }
+              json_str['passphrase'] = 'happytrading12378910';
+              // TODO - logic here for substring identify and call external trade api POST method
+              var final_json_str = JSON.stringify(json_str);
+              Logger.log('final json');
+              Logger.log(final_json_str);
+              webhook_call(final_json_str);
+              // after message is read, mark it read and remove star
+              messages_in_thread[j].markRead();
+              messages_in_thread[j].unstar();
+            } else {
+              Logger.log(' string patter ++ was not found in alert plain body');
+              messages_in_thread[j].markRead();
+              messages_in_thread[j].unstar();
             }
-            json_str['passphrase'] = 'happytrading12378911';
-            // TODO - logic here for substring identify and call external trade api POST method
-            var final_json_str = JSON.stringify(json_str);
-            webhook_call(final_json_str);
-            // after message is read, mark it read and remove star
-            messages_in_thread[j].markRead();
-            messages_in_thread[j].unstar();
-          } else {
-            Logger.log('string patter ++ was not found in alert plain body');
+
+          } else if(plainbody.search('target_hit:')!==-1.0){
+            const ret = plainbody.search(regex);
+            if(ret!==-1.0){
+              Logger.log('String matched');
+              const words = plainbody.split('++');
+              const p = words[1].split(':');
+              json_str[p[0]] = p[1]
+              json_str['passphrase'] = 'happytrading12378910';
+              // TODO - logic here for substring identify and call external trade api POST method
+              var final_json_str = JSON.stringify(json_str);
+              Logger.log('final json');
+              Logger.log(final_json_str);
+              webhook_call(final_json_str);
+              // after message is read, mark it read and remove star
+              messages_in_thread[j].markRead();
+              messages_in_thread[j].unstar();
+            } else {
+              Logger.log(' string patter ++ was not found in alert plain body');
+              messages_in_thread[j].markRead();
+              messages_in_thread[j].unstar();
+            }
+          } 
+          
+          else {
+            Logger.log('SBIN alert not found in plain body');
             messages_in_thread[j].markRead();
             messages_in_thread[j].unstar();
           }
@@ -70,7 +103,7 @@ function webhook_call(final_json_str) {
     'muteHttpExceptions':false,
     'payload' : final_json_str
   }
-  const url = 'https://oqof4gmfbd.execute-api.ap-south-1.amazonaws.com/api/trade_alert';
+  const url = 'https://ehgpovlif5.execute-api.ap-south-1.amazonaws.com/api/trade_alert';
   const response = UrlFetchApp.fetch(url, params);
   //const response = UrlFetchApp.getRequest(url, params);
   Logger.log(response);
