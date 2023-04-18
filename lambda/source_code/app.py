@@ -137,51 +137,72 @@ def place_order(webhook_message, ks_api, user_, kt_trade_config):
         kt_client, user_, webhook_message)
 
     try:
+        open_positions = kt_client.positions(position_type="TODAYS")
         exchange_order_report = kt_client.order_report()
         # check if any order is executed earlier or not, if yes then exit from the order as per alert direction
-        if 'success' in exchange_order_report:
+        if 'success' in exchange_order_report and len(exchange_order_report['success']) != 0 and open_positions['Success'][0]['netTrdQtyLot'] != 0:
             for placed_order in exchange_order_report['success']:
                 placed_order_id = placed_order['orderId']
                 placed_order_quantity = placed_order['orderQuantity']
-                if (placed_order_id is not None) and (trade_type == 'buy'):
+                if (placed_order_id is not None) and (trade_type == 'BUY'):
+
                     # sell previous order if any
                     order_status = kt_client.place_order(order_type="MIS", instrument_token=1900, transaction_type="SELL",
-                                                         quantity=placed_order_quantity, price=0, trigger_price=0,
+                                                         quantity=int(placed_order_quantity), price=0, trigger_price=0,
                                                          tag="string", validity="GFD", variety="REGULAR")
                     # now update the fund and re-calculate no of shares you can trade
                     trade_type, no_of_share_you_can_trade, trade_price, stop_loss = calc_intrument_unit(
                         kt_client, user_, webhook_message)
                     # now buy as per alert
+                    '''order_status = kt_client.place_order(order_type="MIS", instrument_token=1900, transaction_type="BUY",
+                                                         quantity=int(no_of_share_you_can_trade), price=float(trade_price), trigger_price=float(stop_loss),
+                                                         tag="string", validity="GFD", variety="REGULAR")
+                    '''
                     order_status = kt_client.place_order(order_type="MIS", instrument_token=1900, transaction_type="BUY",
-                                                         quantity=no_of_share_you_can_trade, price=trade_price, trigger_price=stop_loss,
+                                                         quantity=int(no_of_share_you_can_trade), price=0, trigger_price=float(stop_loss),
                                                          tag="string", validity="GFD", variety="REGULAR")
 
-                elif (placed_order_id is not None) and (trade_type == 'sell'):
+                elif (placed_order_id is not None) and (trade_type == 'SELL'):
+
                     # buy previous order if any
                     order_status = kt_client.place_order(order_type="MIS", instrument_token=1900, transaction_type="BUY",
-                                                         quantity=placed_order_quantity, price=0, trigger_price=0,
+                                                         quantity=int(placed_order_quantity), price=0, trigger_price=0,
                                                          tag="string", validity="GFD", variety="REGULAR")
                     # now update the fund and re-calculate no of shares you can trade
                     trade_type, no_of_share_you_can_trade, trade_price, stop_loss = calc_intrument_unit(
                         kt_client, user_, webhook_message)
                     # now sell as per alert
-                    order_status = kt_client.place_order(order_type="MIS", instrument_token=1900, transaction_type="SELL",
-                                                         quantity=no_of_share_you_can_trade, price=trade_price, trigger_price=0,
+                    '''order_status = kt_client.place_order(order_type="MIS", instrument_token=1900, transaction_type="SELL",
+                                                         quantity=int(no_of_share_you_can_trade), price=float(trade_price), trigger_price=0,
                                                          tag="string", validity="GFD", variety="REGULAR")
-
+                    '''
+                    order_status = kt_client.place_order(order_type="MIS", instrument_token=1900, transaction_type="SELL",
+                                                         quantity=int(no_of_share_you_can_trade), price=0, trigger_price=0,
+                                                         tag="string", validity="GFD", variety="REGULAR")
                 else:
                     order_status = 'NA - existing'
                     print('no list of existing tran found')
                     kt_client.cancel_order(order_id=placed_order_id)
                     # return {'message': 'order type buy/sell not found in trading view alert'}
         else:
-            if trade_type == 'buy':
+
+            if trade_type == 'BUY':
+                '''
                 order_status = kt_client.place_order(order_type="MIS", instrument_token=1900, transaction_type="BUY",
-                                                     quantity=no_of_share_you_can_trade, price=trade_price, trigger_price=stop_loss,
+                                                     quantity=int(no_of_share_you_can_trade), price=float(trade_price), trigger_price=float(stop_loss),
                                                      tag="string", validity="GFD", variety="REGULAR")
-            elif trade_type == 'sell':
+                '''
+                order_status = kt_client.place_order(order_type="MIS", instrument_token=1900, transaction_type="BUY",
+                                                     quantity=int(no_of_share_you_can_trade), price=0, trigger_price=float(stop_loss),
+                                                     tag="string", validity="GFD", variety="REGULAR")
+            elif trade_type == 'SELL':
+                '''
                 order_status = kt_client.place_order(order_type="MIS", instrument_token=1900, transaction_type="SELL",
-                                                     quantity=no_of_share_you_can_trade, price=trade_price, trigger_price=stop_loss,
+                                                     quantity=int(no_of_share_you_can_trade), price=float(trade_price), trigger_price=float(stop_loss),
+                                                     tag="string", validity="GFD", variety="REGULAR")
+                '''
+                order_status = kt_client.place_order(order_type="MIS", instrument_token=1900, transaction_type="SELL",
+                                                     quantity=int(no_of_share_you_can_trade), price=0, trigger_price=float(stop_loss),
                                                      tag="string", validity="GFD", variety="REGULAR")
             else:
                 order_status = 'NA - first'
@@ -191,8 +212,8 @@ def place_order(webhook_message, ks_api, user_, kt_trade_config):
 
     except Exception as ex:
         # send notification via BOT to respective user chat id TODO - later #
-        send_telegram(
-            user_, 'order placement failed with given exception - '+str(ex))
+        # send_telegram(
+        #    user_, 'order placement failed with given exception - '+str(ex))
         raise Exception(
             'order placement failed with given exception - '+str(ex))
 
@@ -219,28 +240,31 @@ def trade_alert():
             raise Exception('please check your passphrase, its not correct.')
 
         # check if alert instruction is to place order OR for target match
-        if webhook_message['target_hit'] == 'buy':
-            # check previously placed orders
-            # trade off previously placed order with match target price
-            return {'message': 'work in progress for target match critieria'}
-        elif webhook_message['target_hit'] == 'sell':
-            # check previously placed orders
-            # trade off previously placed order with match target price
-            return {'message': 'work in progress for target match critieria'}
-
+        if 'target_hit' in webhook_message:
+            if webhook_message['target_hit'] == 'buy':
+                # check previously placed orders
+                # trade off previously placed order with match target price
+                return {'message': 'work in progress for target match critieria'}
+            elif webhook_message['target_hit'] == 'sell':
+                # check previously placed orders
+                # trade off previously placed order with match target price
+                return {'message': 'work in progress for target match critieria'}
+            else:
+                return {'message': 'target hit alert not properly set'}
+        else:
             # check no of users in <trade_config> file. execute market order requests per user in parallel
-        for user_ in trade_config.kotak_config['user_config']:
-            # threading.Thread(target=place_order, args=(webhook_message,ks_api,user_ , trade_config.kotak_config,)).start()
-            try:
-                place_order_result = place_order(webhook_message, ks_api, user_,
-                                                 trade_config.kotak_config)
-                send_telegram(
-                    user_, 'order placement successful. More details here - '+str(place_order_result))
-            except Exception as e:
-                send_telegram(user_, 'error placing order for user :' +
-                              user_['user_name'] + '. See the exception here : '+str(e))
-                return {'message': 'error placing order. See the exception here : '+str(e)}
-        # return {'message': 'Order placed successfully for all users'}
+            for user_ in trade_config.kotak_config['user_config']:
+                # threading.Thread(target=place_order, args=(webhook_message,ks_api,user_ , trade_config.kotak_config,)).start()
+                try:
+                    place_order_result = place_order(webhook_message, ks_api, user_,
+                                                     trade_config.kotak_config)
+                    send_telegram(
+                        user_, 'order placement successful. More details here - '+str(place_order_result))
+                except Exception as e:
+                    send_telegram(user_, 'error placing order for user :' +
+                                  user_['user_name'] + '. See the exception here : '+str(e))
+                    return {'message': 'error placing order. See the exception here : '+str(e)}
+            # return {'message': 'Order placed successfully for all users'}
     except Exception as ex:
         return {'message': 'error placing order. See the exception here : '+str(ex)}
 
@@ -268,11 +292,11 @@ def per_user_round_off(user_, ks_api, kotak_config):
 
     # fetch today's postion data
     open_positions = kt_client.positions(position_type="TODAYS")
-
+    exchange_order_report = kt_client.order_report()
     # this means there are open trades which need to be squared off
-    if open_positions['Success'][0]['netTrdQtyLot'] > 0:
+    if open_positions['Success'][0]['netTrdQtyLot'] != 0:
         # Get's position by position_type.
-        exchange_order_report = kt_client.order_report()
+
         if 'success' in exchange_order_report:
             for placed_order in exchange_order_report['success']:
                 try:
