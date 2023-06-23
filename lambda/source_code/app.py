@@ -11,6 +11,7 @@ import threading
 from email.mime.multipart import MIMEMultipart
 from email.mime.text import MIMEText
 from chalicelib import trade_config
+import multiprocessing
 # import pandas as pd
 
 app = Chalice(app_name='trade-bot')
@@ -238,7 +239,7 @@ def trade_alert():
         if webhook_message['passphrase'] != trade_config.tradingview_alert_passphrase:
             # print('please check your passphrase, its not correct')
             raise Exception('please check your passphrase, its not correct.')
-
+        ''''''
         # check if alert instruction is to place order OR for target match
         if 'target_hit' in webhook_message:
             if webhook_message['target_hit'] == 'buy':
@@ -251,20 +252,22 @@ def trade_alert():
                 return {'message': 'work in progress for target match critieria'}
             else:
                 return {'message': 'target hit alert not properly set'}
-        else:
+        else:   
             # check no of users in <trade_config> file. execute market order requests per user in parallel
+            # processess
+            processes = []
+
             for user_ in trade_config.kotak_config['user_config']:
-                # threading.Thread(target=place_order, args=(webhook_message,ks_api,user_ , trade_config.kotak_config,)).start()
-                try:
-                    place_order_result = place_order(webhook_message, ks_api, user_,
-                                                     trade_config.kotak_config)
-                    send_telegram(
-                        user_, 'order placement successful. More details here - '+str(place_order_result))
-                except Exception as e:
-                    send_telegram(user_, 'error placing order for user :' +
-                                  user_['user_name'] + '. See the exception here : '+str(e))
-                    return {'message': 'error placing order. See the exception here : '+str(e)}
-            # return {'message': 'Order placed successfully for all users'}
+                p = multiprocessing.Process(target=place_order, args=(
+                    webhook_message, ks_api, user_, trade_config.kotak_config,))
+                processes.append(p)
+                p.start()
+
+                '''place_order_result = place_order(webhook_message, ks_api, user_,
+                                                     trade_config.kotak_config)'''
+
+            for process in processes:
+                process.join()
     except Exception as ex:
         return {'message': 'error placing order. See the exception here : '+str(ex)}
 
